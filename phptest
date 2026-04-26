@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+target_dir="${1:-.}"
+
+if [ ! -d "$target_dir" ]; then
+  printf "\033[31m%s\033[0m\n" "Directory not found: $target_dir"
+  exit 1
+fi
+
+php_files=$(find "$target_dir" -type f -name "*.php" -not -path "*/vendor/*" -not -path "*/node_modules/*")
+
+if [ -z "$php_files" ]; then
+  printf "\033[33m%s\033[0m\n" "No PHP files found in: $target_dir"
+  exit 0
+fi
+
+failed=0
+
+while IFS= read -r file; do
+  if php -l "$file" >/dev/null; then
+    printf "\033[32mPASS\033[0m %s\n" "$file"
+  else
+    printf "\033[31mFAIL\033[0m %s\n" "$file"
+    php -l "$file"
+    failed=1
+  fi
+done <<< "$php_files"
+
+if [ "$failed" -eq 0 ]; then
+  printf "\033[32m%s\033[0m\n" "All PHP files passed syntax check."
+  exit 0
+fi
+
+printf "\033[31m%s\033[0m\n" "One or more PHP files failed syntax check."
+exit 1
