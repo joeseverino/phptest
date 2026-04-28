@@ -2,34 +2,61 @@
 
 target_dir="${1:-.}"
 
-if [ ! -d "$target_dir" ]; then
-  printf "\033[31m%s\033[0m\n" "Directory not found: $target_dir"
+red="\033[31m"
+green="\033[32m"
+yellow="\033[33m"
+reset="\033[0m"
+
+if ! command -v php >/dev/null 2>&1; then
+  printf "${red}%s${reset}\n" "php command not found."
   exit 1
 fi
 
-php_files=$(find "$target_dir" -type f -name "*.php" -not -path "*/vendor/*" -not -path "*/node_modules/*")
-
-if [ -z "$php_files" ]; then
-  printf "\033[33m%s\033[0m\n" "No PHP files found in: $target_dir"
-  exit 0
+if [ ! -d "$target_dir" ]; then
+  printf "${red}%s${reset}\n" "Directory not found: $target_dir"
+  exit 1
 fi
 
+checked=0
+passed=0
 failed=0
 
-while IFS= read -r file; do
-  if php -l "$file" >/dev/null; then
-    printf "\033[32mPASS\033[0m %s\n" "$file"
-  else
-    printf "\033[31mFAIL\033[0m %s\n" "$file"
-    php -l "$file"
-    failed=1
-  fi
-done <<< "$php_files"
+while IFS= read -r -d '' file; do
+  checked=$((checked + 1))
 
-if [ "$failed" -eq 0 ]; then
-  printf "\033[32m%s\033[0m\n" "All PHP files passed syntax check."
+  output=$(php -l "$file" 2>&1)
+
+  if [ $? -eq 0 ]; then
+    passed=$((passed + 1))
+    printf "${green}PASS${reset} %s\n" "$file"
+  else
+    failed=$((failed + 1))
+    printf "${red}FAIL${reset} %s\n" "$file"
+    printf "%s\n" "$output"
+  fi
+done < <(
+  find "$target_dir" \
+    -type f \
+    -name "*.php" \
+    -not -path "*/vendor/*" \
+    -not -path "*/node_modules/*" \
+    -print0 | sort -z
+)
+
+if [ "$checked" -eq 0 ]; then
+  printf "${yellow}%s${reset}\n" "No PHP files found in: $target_dir"
   exit 0
 fi
 
-printf "\033[31m%s\033[0m\n" "One or more PHP files failed syntax check."
+printf "\n"
+printf "Checked: %s\n" "$checked"
+printf "${green}Passed:  %s${reset}\n" "$passed"
+printf "${red}Failed:  %s${reset}\n" "$failed"
+
+if [ "$failed" -eq 0 ]; then
+  printf "\n${green}%s${reset}\n" "All PHP files passed syntax check."
+  exit 0
+fi
+
+printf "\n${red}%s${reset}\n" "One or more PHP files failed syntax check."
 exit 1
